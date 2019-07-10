@@ -36,7 +36,7 @@ public class JavaMethodAreaOOM {
 				@Override
 				public Object intercept(Object obj, Method method, Object[] args,
 						MethodProxy proxy) throws Throwable {
-					// TODO Auto-generated method stub
+					
 					return proxy.invokeSuper(obj, args);
 				}
 			});
