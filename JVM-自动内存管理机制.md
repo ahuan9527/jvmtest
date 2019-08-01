@@ -144,3 +144,38 @@ JAVA堆和方法区不一样，一个接口中的多个实现类需要的内存�
 ### 3.5.4　Serial Old收集器 ###
 - Serial Old是Serial收集器的老年代版本，它同样是一个单线程收集器，使用“标记-整理”算法。这个收集器的主要意义也是在于给Client模式下的虚拟机使用
 ![](https://i.imgur.com/gK19xsQ.png)
+### 3.5.5　Parallel Old收集器 ###
+- Parallel Old是Parallel Scavenge收集器的老年代版本，使用多线程和“标记-整理”算法
+![](https://i.imgur.com/UiE9rBI.png)
+### 3.5.6　CMS收集器 ###
+- CMS 收集器是一种以获取最短回收停顿时间为目标的收集器。响应速度快
+	- 初始标记（CMS initial mark）
+
+	  	并发标记（CMS concurrent mark）
+
+		重新标记（CMS remark）
+
+		并发清除（CMS concurrent sweep）
+	-	初始标记和并发标记，仍然需要停止。初始标记只是标记一下GC root能直接关联到的对象
+![](https://i.imgur.com/0t5RBY1.png)
+- 缺点：
+   - 1.CMS收集器对CPU资源非常敏感。其实，面向并发设计的程序都对CPU资源比较敏感，CMS默认启动的回收线程数是（CPU数量+3）/4
+   - 2.CMS收集器无法处理浮动垃圾（Floating Garbage），可能出现"Concurrent Mode Failure"失败而导致另一次Full GC的产生
+   - --	-XX:CMSInitiatingOccupancyFraction 设置老年代使用多少空间时激活CMS收集器，太高容易导致回收失败，性能降低
+   - 采用‘标记-清除’算法，碎片空间过多，对于大对象的分配很麻烦，往往老年代还有很大的空间，但是无法找到连序的空间进行分配
+   - XX:+UseCMSCompactAtFullCollection用于CMS收集器顶不住要进行FullGC时开启内存碎片的合并整理过程，内存整理的过程是无法并发的，空间碎片问题没有了，但停顿时间不得不变长。
+   - -XX:CMSFullGCsBeforeCompaction，这个参数是用于设置执行多少次不压缩Full GC后，跟着来一次带压缩的（默认值为0，表示每次进入Full GC时都进行碎片整理）
+### 3.5.7　G1收集器 ###
+- G1是一款面向服务端应用的垃圾收集器
+   - 并行与并发：G1能充分利用多CPU、多核环境下的硬件优势，使用多个CPU（CPU或者CPU核心）来缩短Stop-The-World停顿的时间，部分其他收集器原本需要停顿Java线程执行的GC动作，G1收集器仍然可以通过并发的方式让Java程序继续执行。
+   - 分代收集：与其他收集器一样，分代概念在G1中依然得以保留。虽然G1可以不需要其他收集器配合就能独立管理整个GC堆，但它能够采用不同的方式去处理新创建的对象和已经存活了一段时间、熬过多次GC的旧对象以获取更好的收集效果。
+   - 空间整合：与CMS的“标记—清理”算法不同，G1从整体来看是基于“标记—整理”算法实现的收集器，从局部（两个Region之间）上来看是基于“复制”算法实现的，但无论如何，这两种算法都意味着G1运作期间不会产生内存空间碎片，收集后能提供规整的可用内存。这种特性有利于程序长时间运行，分配大对象时不会因为无法找到连续内存空间而提前触发下一次GC。
+   - 可预测的停顿：这是G1相对于CMS的另一大优势，降低停顿时间是G1和CMS共同的关注点，但G1除了追求低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为M毫秒的时间片段内，消耗在垃圾收集上的时间不得超过N毫秒，这几乎已经是实时Java（RTSJ）的垃圾收集器的特征了
+   - 初始标记（Initial Marking）
+
+		并发标记（Concurrent Marking）
+		
+		最终标记（Final Marking）
+		
+		筛选回收（Live Data Counting and Evacuation）
+![](https://i.imgur.com/yWozlLF.png)
