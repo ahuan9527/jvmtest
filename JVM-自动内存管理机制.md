@@ -179,3 +179,94 @@ JAVA堆和方法区不一样，一个接口中的多个实现类需要的内存�
 		
 		筛选回收（Live Data Counting and Evacuation）
 ![](https://i.imgur.com/yWozlLF.png)
+
+### 垃圾收集相关参数 ###
+![](https://i.imgur.com/yv41vse.png)
+![](https://i.imgur.com/PIOBxUs.png)
+## 3.6　内存分配与回收策略 ##
+- 给对象分配内存以及回收分配给对象的内存
+###  3.6.1　对象优先在Eden分配 ###
+- 大多数情况下，对象在新生代Eden区中分配。当Eden区没有足够空间进行分配时，虚拟机将发起一次Minor GC。
+- -XX:+PrintGCDetails 开启打印内存回收日志，并且在内存退出的时候输出当前内存的分配情况
+- 新生代GC（Minor GC）：指发生在新生代的垃圾收集动作，因为Java对象大多都具备朝生夕灭的特性，所以Minor GC非常频繁，一般回收速度也比较快。
+
+- 老年代GC（Major GC/Full GC）：指发生在老年代的GC，出现了Major GC，经常会伴随至少一次的Minor GC（但非绝对的，在Parallel Scavenge收集器的收集策略里就有直接进行Major GC的策略选择过程）。Major GC的速度一般会比Minor GC慢10倍以上。
+### 3.6.2　大对象直接进入老年代 ###
+- 所谓的大对象是指，需要大量连续内存空间的Java对象，最典型的大对象就是那种很长的字符串以及数组
+- -XX:PretenureSizeThreshold 大于该对面值得对面直接在老年代分配，避免Eden区以及Survivor 区域发生大量的内存复制
+### 3.6.3　长期存活的对象将进入老年代 ###
+- 在Eden区域出生，经过第一次minor GC后，能够移动到survivor空间，并且对象年龄设为1，经过15次minor GC 后进入老年代（默认）
+- -XX:MaxTenuringThreshold 设置年龄
+### 3.6.4　动态对象年龄判定 ###
+- survivor空间中相同年龄的对象大小和大于survivor一半，年龄大于等于该年龄的对象直接进入老年代
+### 3.6.5　空间分配担保 ###
+- 查看老年代连序空间是否大于新生代所有对象空间，成立进行minor GC
+如果不成立，则虚拟机会查看HandlePromotionFailure设置值是否允许担保失败
+- 如果允许，那么会继续检查老年代最大可用的连续空间是否大于历次晋升到老年代对象的平均大小，如果大于，将尝试着进行一次Minor GC，尽管这次Minor GC是有风险的；如果小于，或者HandlePromotionFailure设置不允许冒险，那这时也要改为进行一次Full GC。
+## 第4章　虚拟机性能监控与故障处理工具 ##
+### 4.1　概述 ###
+- 适当合理的运用工具，尽心内存的分析。给一个系统定位问题的时候，知识、经验是关键基础，数据是依据，工具是运用知识处理数据的手段。这里说的数据包括：运行日志、异常堆栈、GC日志、线程快照（threaddump/javacore文件）、堆转储快照（heapdump/hprof文件）等
+### 4.2 JDK命令行工具 ###
+![](https://i.imgur.com/jL8oXRc.png)
+![](https://i.imgur.com/419WU2U.png)
+#### 4.2.1　jps：虚拟机进程状况工具 ####
+![](https://i.imgur.com/hVBazxb.png)
+#### 4.2.2　jstat：虚拟机统计信息监视工具 ####
+- jstat（JVM Statistics Monitoring Tool）是用于监视虚拟机各种运行状态信息的命令行工具。它可以显示本地或者远程[1]虚拟机进程中的类装载、内存、垃圾收集、JIT编译等运行数据，在没有GUI图形界面，只提供了纯文本控制台环境的服务器上，它将是运行期定位虚拟机性能问题的首选工具。
+- `jstat[option vmid[interval[s|ms][count]]] `
+![](https://i.imgur.com/eRzhD9F.png)
+#### 4.2.3　jinfo：Java配置信息工具 ####
+- jinfo（Configuration Info for Java）的作用是实时地查看和调整虚拟机各项参数。使用jps命令的-v参数可以查看虚拟机启动时显式指定的参数列表，但如果想知道未被显式指定的参数的系统默认值，除了去找资料外，就只能使用jinfo的-flag选项进行查询了
+#### 4.2.4　jmap：Java内存映像工具 ####
+- jmap（Memory Map for Java）命令用于生成堆转储快照（一般称为heapdump或dump文件）
+- jmap的作用并不仅仅是为了获取dump文件，它还可以查询finalize执行队列、Java堆和永久代的详细信息，如空间使用率、当前用的是哪种收集器等。
+![](https://i.imgur.com/eZDVk0g.png)
+#### 4.2.5　jhat：虚拟机堆转储快照分析工具 ####
+- n JDK提供jhat（JVM Heap Analysis Tool）命令与jmap搭配使用，来分析jmap生成的堆转储快照。jhat内置了一个微型的HTTP/HTML服务器，生成dump文件的分析结果后，可以在浏览器中查看。
+- jhat [file]
+#### 4.2.6　jstack：Java堆栈跟踪工具 ####
+- jstack（Stack Trace for Java）命令用于生成虚拟机当前时刻的线程快照（一般称为threaddump或者javacore文件）。线程快照就是当前虚拟机内每一条线程正在执行的方法堆栈的集合，生成线程快照的主要目的是定位线程出现长时间停顿的原因，如线程间死锁、死循环、请求外部资源导致的长时间等待等都是导致线程长时间停顿的常见原因。
+![](https://i.imgur.com/uNRP3Ty.png)
+#### 4.2.7　HSDIS：JIT生成代码反汇编 ####
+
+![](https://i.imgur.com/e7jNM4T.png)
+1）虚拟机启动参数只限制了Java堆为100MB，没有指定-Xmn参数，能否从监控图中估计出新生代有多大？
+> 图4-6显示Eden空间为27 328KB，因为没有设置-XX:SurvivorRadio参数，所以Eden与Survivor空间比例为默认值8:1，整个新生代空间大约为27 328KB×125%=34 160KB。
+
+2）为何执行了System.gc()之后，图4-6中代表老年代的柱状图仍然显示峰值状态，代码需要如何调整才能让System.gc()回收掉填充到堆中的对象？
+
+>执行完System.gc()之后，空间未能回收是因为List＜OOMObject＞list对象仍然存活，fillHeap()方法仍然没有退出，因此list对象在System.gc()执行时仍然处于作用域之内[2]。如果把System.gc()移动到fillHeap()方法外调用就可以回收掉全部内存。
+
+
+### 4.3　JDK的可视化工具 ###
+#### 4.3.1　JConsole：Java监视与管理控制台 ####
+- JConsole（Java Monitoring and Management Console）是一种基于JMX的可视化监视、管理工具。它管理部分的功能是针对JMX MBean进行管理，由于MBean可以使用代码、中间件服务器的管理控制台或者所有符合JMX规范的软件进行访问，所以本节将会着重介绍JConsole监视部分的功能。
+#### 4.3.2　VisualVM：多合一故障处理工具 ####
+- VisualVM（All-in-One Java Troubleshooting Tool）是到目前为止随JDK发布的功能最强大的运行监视和故障处理程序，并且可以预见在未来一段时间内都是官方主力发展的虚拟机故障处理工具。
+![](https://i.imgur.com/yRCMwq2.png)
+- 启动： jvisualvm.exe
+![](https://i.imgur.com/RrPqw1x.png)
+
+- 2.生成、浏览堆转储快照  
+   - 在VisualVM中生成dump文件有两种方式，可以执行下列任一操作：
+
+	   	在“应用程序”窗口中右键单击应用程序节点，然后选择“堆Dump”。
+
+		在“应用程序”窗口中双击应用程序节点以打开应用程序标签，然后在“监视”标签中单击“堆Dump”。
+   - 需要保存则右键直接另存为保存下来
+   ![](https://i.imgur.com/1AETBLX.png)
+-  3.分析程序性能 
+   -  在Profiler页签中，VisualVM提供了程序运行期间方法级的CPU执行时间分析以及内存分析，做Profiling分析肯定会对程序运行性能有比较大的影响，所以一般不在生产环境中使用这项功能。
+   -  CPU 统计每个方法执行次数、执行耗时；
+   -  内存分析，则会统计每个方法关联的对象数以及这些对象所占的空间
+-  4.BTrace动态日志跟踪
+   -  BTrace[3]是一个很“有趣”的VisualVM插件，本身也是可以独立运行的程序。它的作用是在不停止目标程序运行的前提下，通过HotSpot虚拟机的HotSwap技术[4]动态加入原本并不存在的调试代码
+![](https://i.imgur.com/fuevrtE.png)
+## 5.2　案例分析 ##
+### 5.2.1　高性能硬件上的程序部署策略 ###
+
+- 在高性能硬件上部署程序，目前主要有两种方式：
+> - 通过64位JDK来使用大内存。
+
+> - 使用若干个32位虚拟机建立逻辑集群来利用硬件资源。
+### 5.2.2　集群间同步导致的内存溢出 ###
